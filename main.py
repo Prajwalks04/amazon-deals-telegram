@@ -1,61 +1,68 @@
-# main.py placeholder import os
-from dotenv import load_dotenv
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+# main.py
+
+import os
+import asyncio
+from aiohttp import web
+from telegram import Update
 from telegram.ext import (
-    Application,
-    CommandHandler,
-    MessageHandler,
-    filters,
-    CallbackQueryHandler,
-    ContextTypes,
+    ApplicationBuilder, CommandHandler, ContextTypes,
+    MessageHandler, filters
 )
+from dotenv import load_dotenv
+from utils import send_welcome_message, fetch_and_post_deals
+from admin_commands import register_admin_handlers
 
 load_dotenv()
 
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-APP_URL = os.getenv("APP_URL")  # e.g. https://yourapp.koyeb.app
+TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")  # Example: https://your-koyeb-app.koyeb.app/webhook
+PORT = int(os.getenv("PORT", 8080))
 
-# --- Command Handlers ---
+# Initialize bot app
+app = ApplicationBuilder().token(TOKEN).build()
 
+# Command handlers
+@app.command_handler("start")
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    keyboard = [
-        [InlineKeyboardButton("Explore Deals", url="https://t.me/trendyofferz")],
-        [InlineKeyboardButton("Main Channel", url="https://t.me/ps_botz")],
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
+    await send_welcome_message(update, context)
 
-    await update.message.reply_photo(
-        photo="https://te.legra.ph/file/47c3742549e7b85eb1e53.jpg",  # Change to your logo
-        caption=(
-            "**Welcome to the Deal Hunter Bot!**\n\n"
-            "Maintained by ChatGPT | Powered by OpenAI\n\n"
-            "**Main Channel**: @ps_botz\n"
-            "For more deals: @trendyofferz"
-        ),
-        parse_mode="Markdown",
-        reply_markup=reply_markup
-    )
-
+@app.command_handler("help")
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Use /start to explore deals. Stay tuned!")
+    await update.message.reply_text("This bot posts trending deals 24/7 from Amazon.\nUse /settings if you're an admin.")
 
-# --- Main ---
+# Add custom admin commands
+register_admin_handlers(app)
 
-def main():
-    application = Application.builder().token(BOT_TOKEN).build()
+# Default message handler
+@app.message_handler(filters.TEXT & ~filters.COMMAND)
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Please use a command or wait for trending deals.")
 
-    # Handlers
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("help", help_command))
+# Health check endpoint
+async def health_check(request):
+    return web.Response(text="Bot is healthy")
 
-    # Set webhook
-    webhook_url = f"{APP_URL}/{BOT_TOKEN}"
-    application.run_webhook(
-        listen="0.0.0.0",
-        port=8080,
-        webhook_url=webhook_url,
-    )
+# Webhook handler
+async def handle_webhook(request):
+    data = await request.json()
+    update = Update.de_json(data, app.bot)
+    await app.update_queue.put(update)
+    return web.Response(text="OK")
+
+# Main runner
+async def main():
+    runner = web.AppRunner(web.Application())
+    runner.app.router.add_post("/webhook", handle_webhook)
+    runner.app.router.add_get("/", health_check)
+    await runner.setup()
+    site = web.TCPSite(runner, "0.0.0.0", PORT)
+    await site.start()
+
+    # Set webhook URL
+    await app.bot.set_webhook(url=WEBHOOK_URL + "/webhook")
+
+    print("Bot is running with webhook...")
+    await app.run_polling(close_loop=False)  # Runs update queue manually
 
 if __name__ == "__main__":
-    main()
- bot logic
+    asyncio.run(main())
