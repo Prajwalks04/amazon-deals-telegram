@@ -1,0 +1,13 @@
+name: telegram-deals-bot
+routes:
+  - path: /
+    port: 8080
+    protocol: http
+    target_port: 8080
+docker:
+  build:
+    context: .
+    dockerfile: Dockerfile
+  env:
+    - name: PORT
+      value: "8080"
