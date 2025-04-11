@@ -90,4 +90,11 @@ app.add_handler(CommandHandler("help", help_command))
 app.add_handler(CommandHandler("id", id_command))
 app.add_handler(CommandHandler("channel", channel_command))
 app.add_handler(CommandHandler("setting", admin_setting))
-
+# Webhook Run (for Koyeb deployment)
+if __name__ == "__main__":
+    app.run_webhook(
+        listen="0.0.0.0",
+        port=PORT,
+        webhook_url=f"https://{APP_URL}/webhook/{BOT_TOKEN}"
+    )
+        
