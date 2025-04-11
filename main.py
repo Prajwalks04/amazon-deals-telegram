@@ -1,47 +1,40 @@
-import logging
-from telegram import Update
-from telegram.ext import Application, ContextTypes, CommandHandler, MessageHandler, filters
-from dotenv import load_dotenv
 import os
+from dotenv import load_dotenv
+from telegram import Update
+from telegram.ext import (
+    ApplicationBuilder,
+    ContextTypes,
+    CommandHandler,
+    MessageHandler,
+    filters,
+    CallbackQueryHandler,
+)
 from utils import send_deal_post, send_welcome_message, setup_webhook
-from admin_commands import admin_panel, handle_category_buttons, handle_discount_buttons
+from admin_commands import handle_category_buttons, handle_discount_buttons
 
 load_dotenv()
 
-TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-PORT = 8080
-BASE_URL = os.getenv("BASE_URL")
+BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
-logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
-)
+app = ApplicationBuilder().token(BOT_TOKEN).build()
 
-# Initialize the bot
-app = Application.builder().token(TOKEN).build()
-
-# Command Handlers
+# Basic commands
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await send_welcome_message(update, context)
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Use /start to begin.\nFor admin: /setting, /status, /channel, /connects, /users")
+    await update.message.reply_text("Send /start to begin. Use admin commands to manage deals.")
 
-# Health check endpoint
-async def health_check(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("OK")
-
-# Add Handlers
+# Register command and callback handlers
 app.add_handler(CommandHandler("start", start))
 app.add_handler(CommandHandler("help", help_command))
-app.add_handler(CommandHandler("setting", admin_panel))
-app.add_handler(CommandHandler("status", admin_panel))
-app.add_handler(CommandHandler("channel", admin_panel))
-app.add_handler(CommandHandler("connects", admin_panel))
-app.add_handler(CommandHandler("users", admin_panel))
-app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, send_deal_post))
-app.add_handler(MessageHandler(filters.TEXT & filters.Regex("Clothes|Accessories|Electronics"), handle_category_buttons))
-app.add_handler(MessageHandler(filters.TEXT & filters.Regex(r"\d+%"), handle_discount_buttons))
+app.add_handler(CallbackQueryHandler(handle_category_buttons, pattern="^category_"))
+app.add_handler(CallbackQueryHandler(handle_discount_buttons, pattern="^discount_"))
 
-# Run the bot using webhook
+# Webhook setup (for Koyeb)
+@app.get("/")
+async def root(request):
+    return "Bot is alive"
+
 if __name__ == "__main__":
-    setup_webhook(app, BASE_URL, TOKEN, PORT)
+    setup_webhook(app)
