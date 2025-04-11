@@ -49,3 +49,32 @@ async def id_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def channel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     channel_id = get_channel_id()
     await update.message.reply_text(f"Connected channel: `{channel_id}`", parse_mode="Markdown")
+from utils import welcome_message, get_channel_id
+from admin_commands import (
+    handle_admin_command,
+    handle_category_selection,
+    handle_discount_selection,
+    handle_search_button
+)
+
+# Start command handler
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await welcome_message(update, context)
+
+# Help command
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Use /start to begin.\nUse /id to get your user ID.\nUse /channel to get channel ID.")
+
+# ID command
+async def id_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    await update.message.reply_text(f"Your Telegram User ID: `{user_id}`", parse_mode="Markdown")
+
+# Channel ID command
+async def channel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
+    if str(chat_id).startswith("-100"):
+        await update.message.reply_text(f"Channel ID: `{chat_id}`", parse_mode="Markdown")
+    else:
+        await update.message.reply_text("This command must be used in a channel.")
+        
