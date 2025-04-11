@@ -77,4 +77,17 @@ async def channel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"Channel ID: `{chat_id}`", parse_mode="Markdown")
     else:
         await update.message.reply_text("This command must be used in a channel.")
-        
+    # Admin-only commands
+async def admin_setting(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await handle_admin_command(update, context)
+
+# Application Setup
+app = ApplicationBuilder().token(BOT_TOKEN).build()
+
+# Command Handlers
+app.add_handler(CommandHandler("start", start))
+app.add_handler(CommandHandler("help", help_command))
+app.add_handler(CommandHandler("id", id_command))
+app.add_handler(CommandHandler("channel", channel_command))
+app.add_handler(CommandHandler("setting", admin_setting))
+
