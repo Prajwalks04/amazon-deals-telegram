@@ -16,3 +16,20 @@ async def setting(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text("Choose a category:", reply_markup=reply_markup)
+async def category_selected(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+
+    category = query.data.split("_")[1]
+    context.user_data["category"] = category
+
+    keyboard = [
+        [InlineKeyboardButton("25%", callback_data="discount_25"),
+         InlineKeyboardButton("50%", callback_data="discount_50")],
+        [InlineKeyboardButton("70%", callback_data="discount_70"),
+         InlineKeyboardButton("90%", callback_data="discount_90")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await query.edit_message_text(f"Selected category: {category.capitalize()}\nNow choose a discount:",
+                                  reply_markup=reply_markup)
+    
