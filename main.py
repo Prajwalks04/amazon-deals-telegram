@@ -16,7 +16,7 @@ load_dotenv()
 
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
-app = ApplicationBuilder().token(BOT_TOKEN).build()
+print(f"Loaded BOT_TOKEN: {BOT_TOKEN}")
 
 # Basic commands
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
