@@ -1,100 +1,105 @@
 import os
+import logging
+import asyncio
 from dotenv import load_dotenv
-from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton, InputMediaPhoto
+from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton, BotCommand
 from telegram.ext import (
-    ApplicationBuilder, CommandHandler, CallbackQueryHandler,
-    ContextTypes
+    Application,
+    ContextTypes,
+    CommandHandler,
+    CallbackQueryHandler,
 )
-from utils import get_channel_id, is_admin, welcome_message
-from admin_commands import handle_admin_command, handle_category_selection, handle_discount_selection
-
-# Load environment variables
-load_dotenv()
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-APP_URL = os.getenv("APP_URL")
-PORT = int(os.getenv("PORT", 8080))
-
-# Basic start
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    if update.message:
-        await update.message.reply_photo(
-            photo="https://telegra.ph/file/b68f1b8761b46b2a77f5e.jpg",  # Your welcome image URL
-            caption=welcome_message(),
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("Source - GitHub", url="https://github.com/Prajwalks04")],
-                [InlineKeyboardButton("Main Channel - @ps_botz", url="https://t.me/ps_botz")],
-                [InlineKeyboardButton("Explore Deals - @trendyofferz", url="https://t.me/trendyofferz")],
-                [InlineKeyboardButton("Owner - @PSBOTz", url="https://t.me/PSBOTz")],
-                [InlineKeyboardButton("Admin Panel", callback_data="admin") if await is_admin(user_id) else None],
-            ])
-        )
-
-# Help command
-async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "Available commands:\n"
-        "/start - Show welcome message\n"
-        "/help - Show this help text\n"
-        "/id - Get your Telegram ID\n"
-        "/channel - Show linked channel\n"
-        "/setting - (Admins only) Configure filters and settings"
-    )
-
-# ID command
-async def id_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(f"Your ID: `{update.effective_user.id}`", parse_mode="Markdown")
-
-# Channel command
-async def channel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    channel_id = get_channel_id()
-    await update.message.reply_text(f"Connected channel: `{channel_id}`", parse_mode="Markdown")
-from utils import welcome_message, get_channel_id
+from utils import (
+    is_admin,
+    welcome_message,
+    process_deal_posting,
+    check_for_deals_periodically,
+    send_1_rupee_alert,
+    post_quiz_and_event_updates,
+)
 from admin_commands import (
     handle_admin_command,
     handle_category_selection,
     handle_discount_selection,
-    handle_search_button
+    handle_search_button,
 )
 
-# Start command handler
+load_dotenv()
+
+# Logging
+logging.basicConfig(
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
+)
+
+# Environment Variables
+TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")
+PORT = int(os.getenv("PORT", 8080))
+
+# Bot Commands
+COMMANDS = [
+    BotCommand("start", "Start the bot"),
+    BotCommand("help", "Get help"),
+    BotCommand("id", "Get your chat ID"),
+    BotCommand("channel", "Show configured channel"),
+    BotCommand("setting", "Bot settings (admin only)"),
+    BotCommand("status", "Bot status (admin only)"),
+    BotCommand("connects", "Show linked groups/channels"),
+    BotCommand("users", "Show total users"),
+]
+
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await welcome_message(update, context)
 
-# Help command
+
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Use /start to begin.\nUse /id to get your user ID.\nUse /channel to get channel ID.")
+    await update.message.reply_text("This bot shares Amazon trending deals 24/7.")
 
-# ID command
+
 async def id_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    await update.message.reply_text(f"Your Telegram User ID: `{user_id}`", parse_mode="Markdown")
+    await update.message.reply_text(f"Your Chat ID: `{update.effective_chat.id}`", parse_mode="Markdown")
 
-# Channel ID command
+
 async def channel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    chat_id = update.effective_chat.id
-    if str(chat_id).startswith("-100"):
-        await update.message.reply_text(f"Channel ID: `{chat_id}`", parse_mode="Markdown")
-    else:
-        await update.message.reply_text("This command must be used in a channel.")
-    # Admin-only commands
-async def admin_setting(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await handle_admin_command(update, context)
+    channel = os.getenv("TELEGRAM_CHANNEL_ID", "Not configured")
+    await update.message.reply_text(f"Deals are posted to: `{channel}`", parse_mode="Markdown")
 
-# Application Setup
-app = ApplicationBuilder().token(BOT_TOKEN).build()
 
-# Command Handlers
-app.add_handler(CommandHandler("start", start))
-app.add_handler(CommandHandler("help", help_command))
-app.add_handler(CommandHandler("id", id_command))
-app.add_handler(CommandHandler("channel", channel_command))
-app.add_handler(CommandHandler("setting", admin_setting))
-# Webhook Run (for Koyeb deployment)
-if __name__ == "__main__":
+async def health_check(request):
+    return "OK", 200
+
+
+def main():
+    app = Application.builder().token(TOKEN).build()
+
+    # Register Bot Commands
+    asyncio.run(app.bot.set_my_commands(COMMANDS))
+
+    # Handlers
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("help", help_command))
+    app.add_handler(CommandHandler("id", id_command))
+    app.add_handler(CommandHandler("channel", channel_command))
+    app.add_handler(CommandHandler(["setting", "status", "connects", "users"], handle_admin_command))
+    app.add_handler(CallbackQueryHandler(handle_category_selection, pattern="^category_"))
+    app.add_handler(CallbackQueryHandler(handle_discount_selection, pattern="^discount_"))
+    app.add_handler(CallbackQueryHandler(handle_search_button, pattern="^search_deals$"))
+
+    # Background tasks
+    app.job_queue.run_repeating(check_for_deals_periodically, interval=600, first=5)
+    app.job_queue.run_repeating(send_1_rupee_alert, interval=300, first=10)
+    app.job_queue.run_repeating(post_quiz_and_event_updates, interval=1800, first=30)
+
+    # Webhook
     app.run_webhook(
         listen="0.0.0.0",
         port=PORT,
-        webhook_url=f"https://{APP_URL}/webhook/{BOT_TOKEN}"
+        webhook_url=WEBHOOK_URL,
+        health_check_path="/",
+        allowed_updates=Update.ALL_TYPES,
     )
-        
+
+
+if __name__ == "__main__":
+    main()
