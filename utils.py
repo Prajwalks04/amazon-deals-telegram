@@ -1,72 +1,109 @@
 import os
-import logging
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, InputMediaPhoto
-from telegram.constants import ParseMode
-from telegram.ext import ContextTypes
-from dotenv import load_dotenv
 import requests
+from pymongo import MongoClient
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.constants import ParseMode
 
-load_dotenv()
+# MongoDB setup
+mongo_url = os.getenv("MONGO_DB_URI")
+client = MongoClient(mongo_url)
+db = client["amazon_deals"]
+posted_deals = db["posted_deals"]
+admin_prefs = db["admin_preferences"]
 
-BOT_USERNAME = os.getenv("BOT_USERNAME", "PS_BOTz")
-CHANNEL_LINK = os.getenv("CHANNEL_LINK", "https://t.me/ps_botz")
-OWNER_USERNAME = os.getenv("OWNER_USERNAME", "@PSBOTz")
-GITHUB_URL = os.getenv("GITHUB_URL", "https://github.com/Prajwalks04/amazon-deals-telegram-bot")
-DB_PROVIDER = os.getenv("DB_PROVIDER", "mongodb.com")
-EXPLORE_MORE = os.getenv("EXPLORE_MORE", "https://t.me/trendyofferz")
+# Constants
+ADMIN_IDS = list(map(int, os.getenv("ADMIN_IDS", "").split(",")))
+CHANNEL_ID = os.getenv("CHANNEL_ID")
+BASE_URL = os.getenv("BASE_URL")  # For webhook
 
-async def send_welcome_message(update, context):
-    welcome_image = open("assets/welcome.png", "rb")
-    keyboard = [
-        [
-            InlineKeyboardButton("Source - GitHub", url=GITHUB_URL),
-            InlineKeyboardButton("Main Channel", url=CHANNEL_LINK)
-        ],
-        [
-            InlineKeyboardButton("Owner", url=f"https://t.me/{OWNER_USERNAME.strip('@')}"),
-            InlineKeyboardButton("Explore More Deals", url=EXPLORE_MORE)
-        ]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_photo(
-        photo=welcome_image,
-        caption=f"**Welcome to {BOT_USERNAME}**\n\nMaintained by ChatGPT & Powered by OpenAI.\nFind latest deals, ₹1 offers, price drops, and more.\n\n**Main Channel**: {CHANNEL_LINK}\n**Database**: {DB_PROVIDER}",
-        parse_mode=ParseMode.MARKDOWN,
-        reply_markup=reply_markup
+categories = ["Clothes", "Accessories", "Electronics"]
+
+def is_admin(user_id: int) -> bool:
+    return user_id in ADMIN_IDS
+
+def save_admin_preference(user_id, category, discount):
+    admin_prefs.update_one(
+        {"user_id": user_id},
+        {"$set": {"category": category, "discount": discount}},
+        upsert=True
     )
 
-async def send_deal_post(context: ContextTypes.DEFAULT_TYPE, chat_id, title, price, link, image_url, coupon_code=None, credit_offer=None, tags=None):
-    caption = f"*{title}*\n\n"
-    caption += f"💰 Price: ₹{price}\n"
-    if coupon_code:
-        caption += f"`Coupon: {coupon_code}`\n"
-    if credit_offer:
-        caption += f"💳 Offer: {credit_offer}\n"
-    if tags:
-        caption += "🏷️ " + ", ".join(tags) + "\n"
-    caption += f"[Buy Now]({link})\n\n"
-    caption += "_Limited time offer. Hurry!_"
+def send_welcome_message(update, context):
+    user = update.effective_user
+    buttons = [
+        [InlineKeyboardButton("Source - GitHub", url="https://github.com/Prajwalks04/amazon-deals-telegram-bot")],
+        [InlineKeyboardButton("Main Channel - @ps_botz", url="https://t.me/ps_botz")],
+        [InlineKeyboardButton("Explore More Deals - @trendyofferz", url="https://t.me/trendyofferz")]
+    ]
+    admin_buttons = []
+    if is_admin(user.id):
+        admin_buttons = [
+            [InlineKeyboardButton("Admin Panel", callback_data="admin_panel")]
+        ]
+    update.message.reply_photo(
+        photo=open("assets/welcome.jpg", "rb"),
+        caption=(
+            f"*Welcome to PS BOTz!*\n\n"
+            "This bot delivers trending Amazon deals with coupons, discounts, and more.\n\n"
+            "_Maintained by ChatGPT • Powered by OpenAI_\n\n"
+            "*Join @ps_botz for updates!*"
+        ),
+        parse_mode=ParseMode.MARKDOWN,
+        reply_markup=InlineKeyboardMarkup(buttons + admin_buttons)
+    )
 
-    try:
-        await context.bot.send_photo(
-            chat_id=chat_id,
-            photo=image_url,
-            caption=caption,
-            parse_mode=ParseMode.MARKDOWN
-        )
-    except Exception as e:
-        logging.error(f"Failed to send deal post: {e}")
+def send_deal_post(context, deal):
+    deal_id = deal.get("id")
+    if posted_deals.find_one({"id": deal_id}):
+        return  # Avoid duplicates
 
-def setup_webhook(application):
-    from telegram.ext import Application
-    import os
+    title = deal.get("title", "No Title")
+    url = deal.get("url", "")
+    image = deal.get("image", "")
+    price = deal.get("price", "")
+    original_price = deal.get("original_price", "")
+    discount = deal.get("discount", "")
+    coupon = deal.get("coupon", "")
+    bank_offer = deal.get("bank_offer", "")
+    urgency = ""
 
-    webhook_url = os.getenv("WEBHOOK_URL")
-    if webhook_url:
-        application.run_webhook(
-            listen="0.0.0.0",
-            port=int(os.getenv("PORT", 8080)),
-            webhook_url=webhook_url
-        )
-    else:
-        raise ValueError("WEBHOOK_URL is not set in .env file")
+    if "₹1" in price:
+        urgency = "*HURRY! ₹1 Deal!* "
+
+    message = f"*{urgency}{title}*\n\n"
+    message += f"💸 Price: ₹{price}\n"
+    if original_price:
+        message += f"❌ MRP: ₹{original_price}\n"
+    if discount:
+        message += f"✅ Discount: {discount}\n"
+    if coupon:
+        message += f"🎟 Coupon Code: `{coupon}`\n"
+    if bank_offer:
+        message += f"🏦 Bank Offer: {bank_offer}\n"
+    message += f"\n🔗 [Buy Now]({url})\n\n"
+    message += "_Limited Time Offer. Stay tuned for more!_"
+
+    context.bot.send_photo(
+        chat_id=CHANNEL_ID,
+        photo=image,
+        caption=message,
+        parse_mode=ParseMode.MARKDOWN
+    )
+
+    posted_deals.insert_one({"id": deal_id})
+
+def setup_webhook(app, bot):
+    import telegram.ext.webhookhandler as wh
+    from flask import request
+
+    @app.route('/webhook', methods=['POST'])
+    def webhook():
+        if request.method == "POST":
+            update = telegram.Update.de_json(request.get_json(force=True), bot)
+            bot.update_queue.put(update)
+            return "ok"
+
+    bot.set_webhook(f"{BASE_URL}/webhook")
+
+def get_admin_preferences(user_id):
+    return admin_prefs.find_one({"user_id": user_id})
