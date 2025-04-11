@@ -1,13 +1,22 @@
-name: telegram-deals-bot
-routes:
-  - path: /
-    port: 8080
-    protocol: http
-    target_port: 8080
-docker:
-  build:
-    context: .
-    dockerfile: Dockerfile
-  env:
-    - name: PORT
-      value: "8080"
+name: amazon-deals-telegram-bot
+
+services:
+  - name: deal-bot
+    project: telegram-deals
+    routes:
+      - path: /
+    ports:
+      - port: 8080
+        protocol: http
+    dockerfile: ./Dockerfile
+    healthchecks:
+      - name: webhook-health
+        path: /health
+        port: 8080
+        interval: 30s
+        timeout: 5s
+        unhealthy-threshold: 3
+        healthy-threshold: 1
+    env:
+      - name: PORT
+        value: "8080"
