@@ -1,40 +1,33 @@
 import os
 from dotenv import load_dotenv
 from telegram import Update
-from telegram.ext import (
-    ApplicationBuilder,
-    ContextTypes,
-    CommandHandler,
-    MessageHandler,
-    filters,
-    CallbackQueryHandler,
-)
-from utils import send_deal_post, send_welcome_message, setup_webhook
-from admin_commands import handle_category_buttons, handle_discount_buttons
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
+# Load .env file
 load_dotenv()
 
-BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+APP_URL = os.getenv("APP_URL")  # Your Koyeb URL (without https://)
+PORT = int(os.getenv("PORT", 8080))  # Fallback to 8080 if not set
 
-print(f"Loaded BOT_TOKEN: {BOT_TOKEN}")
-
-# Basic commands
+# Basic start command
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await send_welcome_message(update, context)
+    await update.message.reply_text("Hello! Your bot is running successfully.")
 
-async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Send /start to begin. Use admin commands to manage deals.")
+# Check if BOT_TOKEN is valid
+if not BOT_TOKEN:
+    raise ValueError("BOT_TOKEN is missing! Check your .env or Koyeb environment variables.")
 
-# Register command and callback handlers
+# Build and run the bot
+app = ApplicationBuilder().token(BOT_TOKEN).build()
+
+# Add command handlers
 app.add_handler(CommandHandler("start", start))
-app.add_handler(CommandHandler("help", help_command))
-app.add_handler(CallbackQueryHandler(handle_category_buttons, pattern="^category_"))
-app.add_handler(CallbackQueryHandler(handle_discount_buttons, pattern="^discount_"))
 
-# Webhook setup (for Koyeb)
-@app.get("/")
-async def root(request):
-    return "Bot is alive"
-
+# Run the bot using webhook
 if __name__ == "__main__":
-    setup_webhook(app)
+    app.run_webhook(
+        listen="0.0.0.0",
+        port=PORT,
+        webhook_url=f"https://{APP_URL}/webhook/{BOT_TOKEN}"
+    )
