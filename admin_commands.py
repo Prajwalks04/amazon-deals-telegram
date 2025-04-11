@@ -32,4 +32,16 @@ async def category_selected(update: Update, context: ContextTypes.DEFAULT_TYPE):
     reply_markup = InlineKeyboardMarkup(keyboard)
     await query.edit_message_text(f"Selected category: {category.capitalize()}\nNow choose a discount:",
                                   reply_markup=reply_markup)
+    async def discount_selected(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+
+    discount = query.data.split("_")[1]
+    context.user_data["discount"] = discount
+
+    category = context.user_data.get("category", "Not selected")
+    await query.edit_message_text(
+        f"Filter set!\n\nCategory: *{category.capitalize()}*\nDiscount: *{discount}%*",
+        parse_mode=constants.ParseMode.MARKDOWN
+    )
     
