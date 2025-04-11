@@ -1,3 +1,42 @@
+import os
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import ContextTypes
+
+ADMIN_IDS = os.getenv("ADMIN_IDS", "").split(",")  # comma-separated admin IDs
+
+def is_admin(user_id: int) -> bool:
+    return str(user_id) in ADMIN_IDS
+
+def get_channel_id(update: Update) -> str:
+    if update.effective_chat.type in ["channel", "supergroup", "group"]:
+        return str(update.effective_chat.id)
+    return ""
+
+async def welcome_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    keyboard = [
+        [InlineKeyboardButton("Source - GitHub", url="https://github.com/Prajwalks04")],
+        [InlineKeyboardButton("Owner - @PSBOTz", url="https://t.me/PSBOTz")],
+        [InlineKeyboardButton("Database - MongoDB", url="https://www.mongodb.com/")],
+        [InlineKeyboardButton("Main Channel - @ps_botz", url="https://t.me/ps_botz")],
+        [InlineKeyboardButton("Explore Deals - @trendyofferz", url="https://t.me/trendyofferz")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await context.bot.send_photo(
+        chat_id=update.effective_chat.id,
+        photo="https://telegra.ph/file/79f52f689b75a93f12135.jpg",  # Replace with your welcome image
+        caption=(
+            "**Welcome to your Deal Bot!**\n\n"
+            "This bot is maintained by ChatGPT and powered by OpenAI.\n"
+            "Stay tuned for 24/7 trending deals.\n\n"
+            "Follow @ps_botz for more bots like this!"
+        ),
+        parse_mode="Markdown",
+        reply_markup=reply_markup
+    )
+
+def check_port() -> int:
+    return int(os.getenv("PORT", 8080))
+    
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
 
