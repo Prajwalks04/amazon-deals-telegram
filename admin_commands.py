@@ -33,6 +33,17 @@ async def category_selected(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.edit_message_text(f"Selected category: {category.capitalize()}\nNow choose a discount:",
                                   reply_markup=reply_markup)
     async def discount_selected(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    async def handle_discount_selection(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    selected_discount = query.data
+
+    await query.edit_message_text(
+        text=f"Great! You've selected {selected_discount}% off deals in this category."
+    )
+
+    # You can now store selected category + discount for future filtering logic
+    
     query = update.callback_query
     await query.answer()
 
