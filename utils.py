@@ -1,66 +1,44 @@
-import os
-import requests
-from dotenv import load_dotenv
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, InputMediaPhoto
-from telegram.constants import ParseMode
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
-load_dotenv()
 
-BOT_NAME = "PS BOTz"
-CHANNEL_USERNAME = os.getenv("CHANNEL_USERNAME", "@ps_botz")
-ADMIN_IDS = [int(x.strip()) for x in os.getenv("ADMIN_IDS", "").split(",") if x.strip().isdigit()]
-
-categories = ["Clothes", "Accessories", "Electronics"]
-admin_preferences = {}
-
-def is_admin(user_id):
-    return user_id in ADMIN_IDS
-
-def save_admin_preference(user_id, preference_type, value):
-    if user_id not in admin_preferences:
-        admin_preferences[user_id] = {}
-    admin_preferences[user_id][preference_type] = value
-
-def get_admin_preference(user_id):
-    return admin_preferences.get(user_id, {})
-
-def send_welcome_message(bot, chat_id):
-    buttons = [
-        [InlineKeyboardButton("Source - GitHub", url="https://github.com/Prajwalks04")],
-        [InlineKeyboardButton("Owner - @PSBOTz", url="https://t.me/PSBOTz")],
+def get_main_keyboard():
+    keyboard = [
+        [InlineKeyboardButton("Source", url="https://github.com/Prajwalks04")],
+        [InlineKeyboardButton("Owner", url="https://t.me/PSBOTz")],
+        [InlineKeyboardButton("Database", url="https://www.mongodb.com/")],
         [InlineKeyboardButton("Main Channel", url="https://t.me/ps_botz")],
         [InlineKeyboardButton("Explore Deals", url="https://t.me/trendyofferz")]
     ]
-    welcome_text = (
-        f"**Welcome to {BOT_NAME}**\n\n"
-        "Maintained by ChatGPT and powered by OpenAI.\n"
-        "Discover top deals, coupons, and more!"
-    )
-    bot.send_photo(
-        chat_id=chat_id,
-        photo="https://telegra.ph/file/3bb75c795b790dd8dc2cf.jpg",  # Or your hosted banner
-        caption=welcome_text,
-        parse_mode=ParseMode.MARKDOWN,
-        reply_markup=InlineKeyboardMarkup(buttons)
-    )
+    return InlineKeyboardMarkup(keyboard)
 
-def send_deal_post(bot, chat_id, title, link, price, image_url, coupon=None, extra_note=None):
-    message = f"*{title}*\n\n"
-    message += f"Price: ₹{price}\n"
-    if coupon:
-        message += f"Coupon Code: `{coupon}`\n"
-    if extra_note:
-        message += f"{extra_note}\n"
-    message += f"[Buy Now]({link})"
 
-    bot.send_photo(
-        chat_id=chat_id,
-        photo=image_url,
-        caption=message,
-        parse_mode=ParseMode.MARKDOWN,
-        disable_web_page_preview=False
-    )
+def get_admin_panel():
+    keyboard = [
+        [InlineKeyboardButton("Post Control", callback_data="admin_post")],
+        [InlineKeyboardButton("Scheduling", callback_data="admin_schedule")],
+        [InlineKeyboardButton("Manage Channels", callback_data="admin_channels")],
+        [InlineKeyboardButton("User Access", callback_data="admin_users")],
+        [InlineKeyboardButton("24/7 Posting", callback_data="admin_auto")]
+    ]
+    return InlineKeyboardMarkup(keyboard)
 
-def setup_webhook(bot, webhook_url):
-    bot.delete_webhook()
-    bot.set_webhook(url=webhook_url)
+
+def get_category_keyboard():
+    keyboard = [
+        [InlineKeyboardButton("Clothes", callback_data="cat_clothes")],
+        [InlineKeyboardButton("Accessories", callback_data="cat_accessories")],
+        [InlineKeyboardButton("Electronics", callback_data="cat_electronics")],
+        [InlineKeyboardButton("Kids", callback_data="cat_kids")],
+        [InlineKeyboardButton("Search", callback_data="cat_search")]
+    ]
+    return InlineKeyboardMarkup(keyboard)
+
+
+def get_discount_keyboard():
+    keyboard = [
+        [InlineKeyboardButton("25%", callback_data="disc_25")],
+        [InlineKeyboardButton("50%", callback_data="disc_50")],
+        [InlineKeyboardButton("70%", callback_data="disc_70")],
+        [InlineKeyboardButton("90%", callback_data="disc_90")]
+    ]
+    return InlineKeyboardMarkup(keyboard)
