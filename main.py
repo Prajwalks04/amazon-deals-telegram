@@ -3,32 +3,32 @@ from dotenv import load_dotenv
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
-# Load environment variables
+# Load .env variables
 load_dotenv()
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-APP_URL = os.getenv("APP_URL")  # e.g., pretty-alisun-shs-creation-bd7184dc.koyeb.app
+APP_URL = os.getenv("APP_URL")  # Without https://
 PORT = int(os.getenv("PORT", 8080))
 
-# /start command
+# Simple /start command
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Hello! Your bot is running successfully.")
 
-# Validate
+# Validate essential variables
 if not BOT_TOKEN or not APP_URL:
-    raise ValueError("BOT_TOKEN or APP_URL is missing!")
+    raise ValueError("BOT_TOKEN or APP_URL is missing in environment variables!")
 
-# Create bot application
+# Build bot app
 app = ApplicationBuilder().token(BOT_TOKEN).build()
 
-# Register command
+# Register /start handler
 app.add_handler(CommandHandler("start", start))
 
-# Start webhook
+# Run bot using webhook
 if __name__ == "__main__":
     app.run_webhook(
         listen="0.0.0.0",
         port=PORT,
-        url_path=f"{BOT_TOKEN}",
+        url_path=BOT_TOKEN,
         webhook_url=f"https://{APP_URL}/{BOT_TOKEN}"
     )
