@@ -48,3 +48,14 @@ async def handle_discount_selection(update: Update, context: ContextTypes.DEFAUL
     )
 
     # Here, you could log or store the selected filters (category + discount)
+async def handle_search_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+
+    await query.edit_message_text(
+        text="Please type the product name or keyword you want to search for."
+    )
+
+    # Set a flag in context.user_data to handle the next message as a search input
+    context.user_data["awaiting_search_input"] = True
+    
