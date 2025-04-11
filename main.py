@@ -10,28 +10,25 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 APP_URL = os.getenv("APP_URL")  # e.g., pretty-alisun-shs-creation-bd7184dc.koyeb.app
 PORT = int(os.getenv("PORT", 8080))
 
-# Command handler
+# /start command
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Hello! Your bot is running successfully.")
 
-# Safety check
-if not BOT_TOKEN:
-    raise ValueError("BOT_TOKEN is missing!")
+# Validate
+if not BOT_TOKEN or not APP_URL:
+    raise ValueError("BOT_TOKEN or APP_URL is missing!")
 
-# Create app
+# Create bot application
 app = ApplicationBuilder().token(BOT_TOKEN).build()
 
-# Add handlers
+# Register command
 app.add_handler(CommandHandler("start", start))
 
-# Define webhook path
-webhook_path = f"/webhook/{BOT_TOKEN}"
-
-# Start the webhook
+# Start webhook
 if __name__ == "__main__":
     app.run_webhook(
         listen="0.0.0.0",
         port=PORT,
-        webhook_url=f"https://{APP_URL}{webhook_path}",
-        webhook_path=webhook_path
+        url_path=f"{BOT_TOKEN}",
+        webhook_url=f"https://{APP_URL}/{BOT_TOKEN}"
     )
