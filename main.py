@@ -32,9 +32,11 @@ WELCOME_IMG = "https://envs.sh/GVs.jpg"
 app = Flask(__name__)
 application = None  # Global application reference
 
+
 @app.route("/")
 def health():
     return "✅ Bot is healthy", 200
+
 
 @app.route("/webhook", methods=["POST"])
 def webhook():
@@ -42,8 +44,10 @@ def webhook():
     asyncio.run(application.process_update(update))
     return "OK"
 
+
 def run_flask():
     app.run(host="0.0.0.0", port=PORT)
+
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
@@ -53,6 +57,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("Explore More Deals", url="https://t.me/trendyofferz")],
     ]
     admin_keyboard = [[InlineKeyboardButton("Admin Panel", callback_data="admin_panel")]]
+
     await context.bot.send_photo(
         chat_id=update.effective_chat.id,
         photo=WELCOME_IMG,
@@ -66,12 +71,15 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=InlineKeyboardMarkup(keyboard + admin_keyboard),
     )
 
+
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Use /start to begin. Stay tuned for amazing offers!")
+
 
 async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
+
     if query.data == "admin_panel":
         buttons = [
             [InlineKeyboardButton("Status", callback_data="status")],
@@ -89,12 +97,14 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
     else:
         await handle_admin_command(update, context)
 
+
 def main():
     global application
 
     if not BOT_TOKEN or not APP_URL:
         raise ValueError("BOT_TOKEN or APP_URL is missing from environment variables.")
 
+    # Start Flask in a separate thread
     Thread(target=run_flask).start()
 
     application = Application.builder().token(BOT_TOKEN).build()
@@ -104,7 +114,7 @@ def main():
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_admin_command))
     application.add_handler(CallbackQueryHandler(handle_callback_query))
 
-    # Start background tasks inside a new async thread
+    # Background deal checker and ₹1 alert
     def run_async_tasks():
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
@@ -114,11 +124,13 @@ def main():
 
     Thread(target=run_async_tasks).start()
 
+    # Run webhook
     application.run_webhook(
         listen="0.0.0.0",
         port=PORT,
         webhook_url=f"{APP_URL}/webhook",
     )
+
 
 if __name__ == "__main__":
     main()
