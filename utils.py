@@ -1,4 +1,5 @@
 import os
+import asyncio
 from pymongo import MongoClient
 from telegram import InputMediaPhoto, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.constants import ParseMode
@@ -110,30 +111,34 @@ async def process_deal_posting(context: ContextTypes.DEFAULT_TYPE, deal: dict):
     mark_as_posted(product_id)
 
 
-# --- Add this function for ₹1 alerts if imported directly ---
+async def send_1_rupee_alert(context: ContextTypes.DEFAULT_TYPE, deal: dict):
+    title = deal.get("title", "₹1 Deal!")
+    image_url = deal.get("image", "")
+    url = deal.get("url", "")
 
-async def send_1_rupee_alert(context, deal):
-    try:
-        title = deal.get("title", "No Title")
-        price = deal.get("price", "")
-        url = deal.get("url", "")
-        image_url = deal.get("image", "")
+    caption = (
+        f"<b>₹1 Deal Alert!</b> ⚠️\n\n"
+        f"<b>{title}</b>\n\n"
+        f"<a href='{url}'>Buy Now</a>\n\n"
+        "Limited Time Offer – Act Fast!"
+    )
 
-        caption = (
-            f"<b>₹1 Deal Alert!</b> ⚡\n\n"
-            f"<b>{title}</b>\n"
-            f"Price: <b>{price}</b>\n\n"
-            f"<a href='{url}'>Buy Now</a>"
-        )
+    message = await context.bot.send_photo(
+        chat_id=CHANNEL_ID,
+        photo=image_url,
+        caption=caption,
+        parse_mode=ParseMode.HTML
+    )
 
-        message = await context.bot.send_photo(
-            chat_id=get_channel_id(),
-            photo=image_url,
-            caption=caption,
-            parse_mode=ParseMode.HTML
-        )
+    await context.bot.pin_chat_message(chat_id=CHANNEL_ID, message_id=message.message_id)
 
-        await context.bot.pin_chat_message(chat_id=get_channel_id(), message_id=message.message_id)
 
-    except Exception as e:
-        print(f"[₹1 Alert Error] {e}")
+async def check_for_deals_periodically(context: ContextTypes.DEFAULT_TYPE, fetch_deals_func):
+    while True:
+        try:
+            deals = await fetch_deals_func()
+            for deal in deals:
+                await process_deal_posting(context, deal)
+        except Exception as e:
+            print(f"[Deal Check Error] {e}")
+        await asyncio.sleep(600)  # every 10 minutes
