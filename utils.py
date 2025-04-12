@@ -1,15 +1,19 @@
 import os
 import asyncio
+import logging
 from pymongo import MongoClient
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
 from dotenv import load_dotenv
 from pymongo.errors import ConnectionFailure
+import signal
 
+# Load environment variables
 load_dotenv()
 
 MONGO_URI = os.getenv("MONGO_URI")
 CHANNEL_ID = os.getenv("CHANNEL_ID")
+DEAL_CHECK_INTERVAL = int(os.getenv("DEAL_CHECK_INTERVAL", "600"))  # default 10 minutes
 
 # Ensure environment variables are set
 if not MONGO_URI or not CHANNEL_ID:
@@ -21,15 +25,26 @@ try:
     db = mongo_client["telegram_deals"]
     deals_collection = db["posted_deals"]
 except ConnectionFailure as e:
-    print(f"Database connection failed: {e}")
+    logging.error(f"Database connection failed: {e}")
     raise
 
+# Graceful shutdown handler
+def shutdown_handler(signum, frame):
+    logging.info("Shutting down gracefully...")
+    mongo_client.close()  # Close MongoDB connection
+    exit(0)
+
+# Register signal handler for graceful shutdown
+signal.signal(signal.SIGINT, shutdown_handler)  # Handle Ctrl+C
+
+# MongoDB functions to check if a deal has been posted
 def has_been_posted(product_id: str) -> bool:
     return deals_collection.find_one({"product_id": product_id}) is not None
 
 def mark_as_posted(product_id: str):
     deals_collection.insert_one({"product_id": product_id})
 
+# Posting quiz and event updates
 async def post_quiz_and_event_updates(context: ContextTypes.DEFAULT_TYPE, deal: dict):
     if "quiz" in deal.get("tags", []):
         title = deal.get("title", "No Title")
@@ -52,6 +67,7 @@ async def post_quiz_and_event_updates(context: ContextTypes.DEFAULT_TYPE, deal: 
 
         await context.bot.pin_chat_message(chat_id=CHANNEL_ID, message_id=message.message_id)
 
+# Processing deals before posting them
 async def process_deal_posting(context: ContextTypes.DEFAULT_TYPE, deal: dict):
     product_id = deal.get("id")
     if has_been_posted(product_id):
@@ -95,6 +111,7 @@ async def process_deal_posting(context: ContextTypes.DEFAULT_TYPE, deal: dict):
     mark_as_posted(product_id)
     await post_quiz_and_event_updates(context, deal)
 
+# Periodically check for new deals
 async def check_for_deals_periodically(bot):
     from fetch_deals import fetch_trending_deals  # Make sure this file exists
 
@@ -108,10 +125,10 @@ async def check_for_deals_periodically(bot):
             for deal in deals:
                 await process_deal_posting(DummyContext(bot), deal)
         except Exception as e:
-            print(f"[Deal Check Error] {e}")
-        await asyncio.sleep(600)
+            logging.error(f"[Deal Check Error] {e}")
+        await asyncio.sleep(DEAL_CHECK_INTERVAL)
 
-# ✅ This was missing: add this function
+# Sending ₹1 deal alert
 async def send_1_rupee_alert(bot):
     alert_text = (
         "<b>₹1 Deal Alert!</b>\n\n"
