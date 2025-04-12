@@ -1,6 +1,6 @@
 import os
 from pymongo import MongoClient
-from telegram import ParseMode
+from telegram.constants import ParseMode
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
 from dotenv import load_dotenv
