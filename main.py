@@ -88,7 +88,6 @@ def main():
 
     # Background tasks
     app.job_queue.run_repeating(check_for_deals_periodically, interval=600, first=5)
-    app.job_queue.run_repeating(send_1_rupee_alert, interval=300, first=10)
     app.job_queue.run_repeating(post_quiz_and_event_updates, interval=1800, first=30)
 
     # Webhook
