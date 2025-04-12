@@ -23,7 +23,7 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
 )
 
-WELCOME_IMG = "https://telegra.ph/file/214f87de9a7d2d7992597.jpg"
+WELCOME_IMG = "https://envs.sh/GVs.jpg"
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
