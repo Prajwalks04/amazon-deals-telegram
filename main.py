@@ -1,104 +1,104 @@
-import os
 import logging
-import asyncio
+import os
 from dotenv import load_dotenv
-from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton, BotCommand
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     Application,
-    ContextTypes,
     CommandHandler,
+    MessageHandler,
     CallbackQueryHandler,
+    ContextTypes,
+    filters,
 )
-from utils import (
-    is_admin,
-    welcome_message,
-    process_deal_posting,
-    check_for_deals_periodically,
-    send_1_rupee_alert,
-    post_quiz_and_event_updates,
-)
-from admin_commands import (
-    handle_admin_command,
-    handle_category_selection,
-    handle_discount_selection,
-    handle_search_button,
-)
+from utils import check_for_deals_periodically, send_1_rupee_alert
+from admin_commands import handle_admin_command
 
 load_dotenv()
 
-# Logging
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+PORT = int(os.getenv("PORT", "8080"))
+APP_URL = os.getenv("APP_URL")  # e.g., https://your-koyeb-app.koyeb.app
+
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
 )
 
-# Environment Variables
-TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-WEBHOOK_URL = os.getenv("WEBHOOK_URL")
-PORT = int(os.getenv("PORT", 8080))
-
-# Bot Commands
-COMMANDS = [
-    BotCommand("start", "Start the bot"),
-    BotCommand("help", "Get help"),
-    BotCommand("id", "Get your chat ID"),
-    BotCommand("channel", "Show configured channel"),
-    BotCommand("setting", "Bot settings (admin only)"),
-    BotCommand("status", "Bot status (admin only)"),
-    BotCommand("connects", "Show linked groups/channels"),
-    BotCommand("users", "Show total users"),
-]
-
+WELCOME_IMG = "https://telegra.ph/file/214f87de9a7d2d7992597.jpg"
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await welcome_message(update, context)
+    keyboard = [
+        [InlineKeyboardButton("Source - GitHub", url="https://github.com/Prajwalks04/amazon-deals-telegram")],
+        [InlineKeyboardButton("Owner - @PSBOTz", url="https://t.me/PSBOTz")],
+        [InlineKeyboardButton("Main Channel - @ps_botz", url="https://t.me/ps_botz")],
+        [InlineKeyboardButton("Explore More Deals", url="https://t.me/trendyofferz")],
+    ]
 
+    admin_keyboard = [
+        [InlineKeyboardButton("Admin Panel", callback_data="admin_panel")]
+    ]
 
-async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("This bot shares Amazon trending deals 24/7.")
-
-
-async def id_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(f"Your Chat ID: `{update.effective_chat.id}`", parse_mode="Markdown")
-
-
-async def channel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    channel = os.getenv("TELEGRAM_CHANNEL_ID", "Not configured")
-    await update.message.reply_text(f"Deals are posted to: `{channel}`", parse_mode="Markdown")
-
-
-async def health_check(request):
-    return "OK", 200
-
-
-def main():
-    app = Application.builder().token(TOKEN).build()
-
-    # Register Bot Commands
-    asyncio.run(app.bot.set_my_commands(COMMANDS))
-
-    # Handlers
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("help", help_command))
-    app.add_handler(CommandHandler("id", id_command))
-    app.add_handler(CommandHandler("channel", channel_command))
-    app.add_handler(CommandHandler(["setting", "status", "connects", "users"], handle_admin_command))
-    app.add_handler(CallbackQueryHandler(handle_category_selection, pattern="^category_"))
-    app.add_handler(CallbackQueryHandler(handle_discount_selection, pattern="^discount_"))
-    app.add_handler(CallbackQueryHandler(handle_search_button, pattern="^search_deals$"))
-
-    # Background tasks
-    app.job_queue.run_repeating(check_for_deals_periodically, interval=600, first=5)
-    app.job_queue.run_repeating(post_quiz_and_event_updates, interval=1800, first=30)
-
-    # Webhook
-    app.run_webhook(
-        listen="0.0.0.0",
-        port=PORT,
-        webhook_url=WEBHOOK_URL,
-        health_check_path="/",
-        allowed_updates=Update.ALL_TYPES,
+    await context.bot.send_photo(
+        chat_id=update.effective_chat.id,
+        photo=WELCOME_IMG,
+        caption=(
+            "<b>Welcome to Amazon Deals Bot!</b>\n\n"
+            "Find the latest trending deals, ₹1 offers, contests, and more!\n\n"
+            "Maintained by ChatGPT | Powered by OpenAI\n"
+            "Checkout @ps_botz for more bots like this."
+        ),
+        parse_mode="HTML",
+        reply_markup=InlineKeyboardMarkup(keyboard + admin_keyboard),
     )
 
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Use /start to begin. Stay tuned for amazing offers!")
+
+async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+
+    if query.data == "admin_panel":
+        buttons = [
+            [InlineKeyboardButton("Status", callback_data="status")],
+            [InlineKeyboardButton("Settings", callback_data="setting")],
+            [InlineKeyboardButton("Users", callback_data="users")],
+            [InlineKeyboardButton("Channel", callback_data="channel")],
+            [InlineKeyboardButton("Connects", callback_data="connects")],
+            [InlineKeyboardButton("Search", switch_inline_query_current_chat="")],
+        ]
+        await query.edit_message_text(
+            "<b>Admin Control Panel</b>",
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup(buttons),
+        )
+    else:
+        await handle_admin_command(update, context)
+
+async def health_check(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("✅ Bot is healthy and running!")
+
+def main():
+    if not BOT_TOKEN or not APP_URL:
+        raise ValueError("BOT_TOKEN or APP_URL is missing from environment variables.")
+
+    application = Application.builder().token(BOT_TOKEN).build()
+
+    # Webhook setup
+    application.run_webhook(
+        listen="0.0.0.0",
+        port=PORT,
+        webhook_url=f"{APP_URL}/webhook",
+    )
+
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("help", help_command))
+    application.add_handler(CommandHandler("health", health_check))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_admin_command))
+    application.add_handler(CallbackQueryHandler(handle_callback_query))
+
+    # Start background tasks
+    application.create_task(check_for_deals_periodically(application.bot))
+    application.create_task(send_1_rupee_alert(application.bot))
 
 if __name__ == "__main__":
     main()
