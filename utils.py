@@ -1,5 +1,4 @@
 import os
-import asyncio
 from pymongo import MongoClient
 from telegram import InputMediaPhoto, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.constants import ParseMode
@@ -111,23 +110,30 @@ async def process_deal_posting(context: ContextTypes.DEFAULT_TYPE, deal: dict):
     mark_as_posted(product_id)
 
 
-# Add this: Periodic deal checker
-async def check_for_deals_periodically(application):
-    while True:
-        try:
-            # This should fetch your actual deals from API or source
-            dummy_deal = {
-                "id": "demo_id_123",
-                "title": "Sample Product - Limited Time",
-                "price": "₹1",
-                "image": "https://example.com/image.png",
-                "url": "https://amzn.to/sample",
-                "coupon": "SAVE100",
-                "credit_offer": "10% on HDFC",
-                "tags": ["Price Drop", "Limited Offer"]
-            }
-            context = ContextTypes.DEFAULT_TYPE(application=application)
-            await process_deal_posting(context, dummy_deal)
-        except Exception as e:
-            print(f"[Periodic Deal Check Error] {e}")
-        await asyncio.sleep(3600)  # Run every hour
+# --- Add this function for ₹1 alerts if imported directly ---
+
+async def send_1_rupee_alert(context, deal):
+    try:
+        title = deal.get("title", "No Title")
+        price = deal.get("price", "")
+        url = deal.get("url", "")
+        image_url = deal.get("image", "")
+
+        caption = (
+            f"<b>₹1 Deal Alert!</b> ⚡\n\n"
+            f"<b>{title}</b>\n"
+            f"Price: <b>{price}</b>\n\n"
+            f"<a href='{url}'>Buy Now</a>"
+        )
+
+        message = await context.bot.send_photo(
+            chat_id=get_channel_id(),
+            photo=image_url,
+            caption=caption,
+            parse_mode=ParseMode.HTML
+        )
+
+        await context.bot.pin_chat_message(chat_id=get_channel_id(), message_id=message.message_id)
+
+    except Exception as e:
+        print(f"[₹1 Alert Error] {e}")
