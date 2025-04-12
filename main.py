@@ -14,7 +14,7 @@ from telegram.ext import (
 from utils import check_for_deals_periodically, send_1_rupee_alert
 from admin_commands import handle_admin_command
 
-from flask import Flask
+from flask import Flask, request
 from threading import Thread
 
 load_dotenv()
@@ -30,10 +30,17 @@ logging.basicConfig(
 WELCOME_IMG = "https://envs.sh/GVs.jpg"
 
 app = Flask(__name__)
+application = None  # Global application reference
 
 @app.route("/")
 def health():
     return "✅ Bot is healthy", 200
+
+@app.route("/webhook", methods=["POST"])
+def webhook():
+    update = Update.de_json(request.get_json(force=True), application.bot)
+    asyncio.run(application.process_update(update))
+    return "OK"
 
 def run_flask():
     app.run(host="0.0.0.0", port=PORT)
@@ -83,6 +90,8 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
         await handle_admin_command(update, context)
 
 def main():
+    global application
+
     if not BOT_TOKEN or not APP_URL:
         raise ValueError("BOT_TOKEN or APP_URL is missing from environment variables.")
 
@@ -95,9 +104,15 @@ def main():
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_admin_command))
     application.add_handler(CallbackQueryHandler(handle_callback_query))
 
-    # Background tasks
-    asyncio.create_task(check_for_deals_periodically(application.bot))
-    asyncio.create_task(send_1_rupee_alert(application.bot))
+    # Start background tasks inside a new async thread
+    def run_async_tasks():
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.create_task(check_for_deals_periodically(application.bot))
+        loop.create_task(send_1_rupee_alert(application.bot))
+        loop.run_forever()
+
+    Thread(target=run_async_tasks).start()
 
     application.run_webhook(
         listen="0.0.0.0",
