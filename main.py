@@ -97,8 +97,10 @@ def main():
     application.add_handler(CallbackQueryHandler(handle_callback_query))
 
     # Start background tasks
-    application.create_task(check_for_deals_periodically(application.bot))
-    application.create_task(send_1_rupee_alert(application.bot))
+    asyncio.create_task(check_for_deals_periodically(application.bot))
+    asyncio.create_task(send_1_rupee_alert(application.bot))
+
+    application.run_polling()
 
 if __name__ == "__main__":
     main()
