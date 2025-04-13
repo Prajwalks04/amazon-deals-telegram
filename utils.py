@@ -1,25 +1,25 @@
 import os
 import asyncio
 import logging
-import signal
 from pymongo import MongoClient
-from pymongo.errors import ConnectionFailure
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
 from dotenv import load_dotenv
+from pymongo.errors import ConnectionFailure
+import signal
 
 # Load environment variables
 load_dotenv()
 
 MONGO_URI = os.getenv("MONGO_URI")
 CHANNEL_ID = os.getenv("CHANNEL_ID")
-DEAL_CHECK_INTERVAL = int(os.getenv("DEAL_CHECK_INTERVAL", "600"))  # Default 10 minutes
+DEAL_CHECK_INTERVAL = int(os.getenv("DEAL_CHECK_INTERVAL", "600"))  # default 10 minutes
 
 # Ensure environment variables are set
 if not MONGO_URI or not CHANNEL_ID:
     raise EnvironmentError("Missing necessary environment variables: MONGO_URI or CHANNEL_ID.")
 
-# Connect to MongoDB
+# Connect to MongoDB with exception handling
 try:
     mongo_client = MongoClient(MONGO_URI)
     db = mongo_client["telegram_deals"]
@@ -31,20 +31,20 @@ except ConnectionFailure as e:
 # Graceful shutdown handler
 def shutdown_handler(signum, frame):
     logging.info("Shutting down gracefully...")
-    mongo_client.close()
+    mongo_client.close()  # Close MongoDB connection
     exit(0)
 
+# Register signal handler for graceful shutdown
 signal.signal(signal.SIGINT, shutdown_handler)  # Handle Ctrl+C
 
-# Check if a deal has already been posted
+# MongoDB functions to check if a deal has been posted
 def has_been_posted(product_id: str) -> bool:
     return deals_collection.find_one({"product_id": product_id}) is not None
 
-# Mark a deal as posted
 def mark_as_posted(product_id: str):
     deals_collection.insert_one({"product_id": product_id})
 
-# Post quiz/event updates and pin
+# Posting quiz and event updates
 async def post_quiz_and_event_updates(context: ContextTypes.DEFAULT_TYPE, deal: dict):
     if "quiz" in deal.get("tags", []):
         title = deal.get("title", "No Title")
@@ -53,7 +53,7 @@ async def post_quiz_and_event_updates(context: ContextTypes.DEFAULT_TYPE, deal: 
 
         caption = (
             f"<b>{title}</b>\n\n"
-            "Don't miss out on this Quiz/Event!\n\n"
+            f"Don't miss out on this Quiz/Event!\n\n"
             f"<a href='{url}'>Join Now</a>\n\n"
             "Hurry, limited spots available!"
         )
@@ -67,7 +67,7 @@ async def post_quiz_and_event_updates(context: ContextTypes.DEFAULT_TYPE, deal: 
 
         await context.bot.pin_chat_message(chat_id=CHANNEL_ID, message_id=message.message_id)
 
-# Process and post a deal
+# Processing deals before posting them
 async def process_deal_posting(context: ContextTypes.DEFAULT_TYPE, deal: dict):
     product_id = deal.get("id")
     if has_been_posted(product_id):
@@ -89,8 +89,10 @@ async def process_deal_posting(context: ContextTypes.DEFAULT_TYPE, deal: dict):
         caption += f"Coupon Code: <code>{coupon}</code>\n"
     if credit_offer:
         caption += f"Bank Offer: <code>{credit_offer}</code>\n"
+
     if is_one_rupee:
         caption += "\n<b>₹1 Deal Alert!</b> ⚡ Limited Stock! Buy Now!\n"
+
     if tag_text:
         caption += f"\nTags: {tag_text}"
 
@@ -109,13 +111,13 @@ async def process_deal_posting(context: ContextTypes.DEFAULT_TYPE, deal: dict):
     mark_as_posted(product_id)
     await post_quiz_and_event_updates(context, deal)
 
-# Periodic deal checking loop
+# Periodically check for new deals
 async def check_for_deals_periodically(bot):
-    from fetch_deals import fetch_trending_deals
+    from fetch_deals import fetch_trending_deals  # Make sure this file exists
 
     class DummyContext:
-        def __init__(self, bot_instance):
-            self.bot = bot_instance
+        def __init__(self, bot):
+            self.bot = bot
 
     while True:
         try:
@@ -126,7 +128,7 @@ async def check_for_deals_periodically(bot):
             logging.error(f"[Deal Check Error] {e}")
         await asyncio.sleep(DEAL_CHECK_INTERVAL)
 
-# Send ₹1 alert to the channel
+# Sending ₹1 deal alert
 async def send_1_rupee_alert(bot):
     alert_text = (
         "<b>₹1 Deal Alert!</b>\n\n"
@@ -135,4 +137,3 @@ async def send_1_rupee_alert(bot):
         "#OneRupee #FlashDeal #ps_botz"
     )
     await bot.send_message(chat_id=CHANNEL_ID, text=alert_text, parse_mode=ParseMode.HTML)
-ParseMode.HTML)
