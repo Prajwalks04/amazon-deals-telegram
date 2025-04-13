@@ -135,4 +135,4 @@ async def send_1_rupee_alert(bot):
         "#OneRupee #FlashDeal #ps_botz"
     )
     await bot.send_message(chat_id=CHANNEL_ID, text=alert_text, parse_mode=ParseMode.HTML)
-ode.HTML)
+ParseMode.HTML)
