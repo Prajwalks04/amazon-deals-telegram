@@ -30,7 +30,7 @@ logging.basicConfig(
 WELCOME_IMG = "https://envs.sh/GVs.jpg"
 
 app = Flask(__name__)
-application = None  # Global application reference
+application = None  # Global reference
 
 
 @app.route("/")
@@ -40,9 +40,16 @@ def health():
 
 @app.route("/webhook", methods=["POST"])
 def webhook():
-    update = Update.de_json(request.get_json(force=True), application.bot)
-    asyncio.run(application.process_update(update))
-    return "OK"
+    if request.method == "POST":
+        update = Update.de_json(request.get_json(force=True), application.bot)
+
+        async def process():
+            await application.initialize()
+            await application.process_update(update)
+            await application.shutdown()
+
+        asyncio.run(process())
+        return "OK", 200
 
 
 def run_flask():
@@ -104,9 +111,6 @@ def main():
     if not BOT_TOKEN or not APP_URL:
         raise ValueError("BOT_TOKEN or APP_URL is missing from environment variables.")
 
-    # Start Flask in a separate thread
-    Thread(target=run_flask).start()
-
     application = Application.builder().token(BOT_TOKEN).build()
 
     application.add_handler(CommandHandler("start", start))
@@ -114,7 +118,10 @@ def main():
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_admin_command))
     application.add_handler(CallbackQueryHandler(handle_callback_query))
 
-    # Background deal checker and ₹1 alert
+    # Start Flask in background
+    Thread(target=run_flask).start()
+
+    # Background tasks (deals and ₹1 alerts)
     def run_async_tasks():
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
@@ -124,7 +131,7 @@ def main():
 
     Thread(target=run_async_tasks).start()
 
-    # Run webhook
+    # Use webhook for Telegram
     application.run_webhook(
         listen="0.0.0.0",
         port=PORT,
